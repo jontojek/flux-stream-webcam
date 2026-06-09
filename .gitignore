@@ -1,0 +1,24 @@
+# Model weights and HuggingFace cache — too large for git
+models/*.safetensors
+models/*.gguf
+models/*.bin
+models/*.pt
+models/*.pth
+models/*-diffusers/
+models/hf_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Claude Code local memory / state
+.claude/
+
+# Misc
+.DS_Store
+*.egg-info/
+dist/
+build/

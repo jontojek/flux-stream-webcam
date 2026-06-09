@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# requirements.txt
+#
+# Install order matters — install PyTorch nightly (cu128) FIRST, then the
+# rest.  See README.md for the exact pip commands.
+# ---------------------------------------------------------------------------
+
+# --- PyTorch nightly (cu128) — install manually before running pip install -r
+# pip install --pre torch torchvision torchaudio \
+#     --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# --- Core inference stack ---
+torchao>=0.9.0
+diffusers>=0.31.0
+transformers>=4.46.0
+accelerate
+peft          # required to load LoRAs
+triton        # required by torch.compile
+
+# --- Audio ---
+sounddevice
+faster-whisper
+
+# --- Vision / utility ---
+opencv-python
+Pillow
+numpy
