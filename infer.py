@@ -23,6 +23,32 @@ import config
 COMPILED = config.USE_COMPILE  # for status reporting
 
 # ---------------------------------------------------------------------------
+# Schedule mu override (FAL's realtime Klein demo calls this `schedule_mu`:
+# https://fal.ai/models/fal-ai/flux-2/klein/realtime). Klein's pipeline always
+# derives the flow-matching scheduler's "mu" time-shift from resolution + step
+# count via compute_empirical_mu() -- there's no kwarg on __call__ to override
+# it. compute_empirical_mu is referenced as a bare module-level name inside
+# the pipeline's __call__, so monkeypatching that name on the live module
+# object intercepts every call without forking/subclassing the pipeline.
+# config.SCHEDULE_MU = None keeps the original (auto) behaviour untouched.
+# ---------------------------------------------------------------------------
+try:
+    import diffusers.pipelines.flux2.pipeline_flux2_klein_inpaint as _flux2_klein_mod
+
+    _original_compute_empirical_mu = _flux2_klein_mod.compute_empirical_mu
+
+    def _compute_empirical_mu_override(image_seq_len: int, num_steps: int) -> float:
+        if config.SCHEDULE_MU is not None:
+            return float(config.SCHEDULE_MU)
+        return _original_compute_empirical_mu(image_seq_len, num_steps)
+
+    _flux2_klein_mod.compute_empirical_mu = _compute_empirical_mu_override
+    print("[infer] schedule_mu override installed (config.SCHEDULE_MU; live keys m/n/r).")
+except Exception as e:
+    print(f"[infer] schedule_mu override NOT installed ({e}) -- "
+          f"SCHEDULE_MU will be ignored; auto behaviour unaffected.")
+
+# ---------------------------------------------------------------------------
 # Prompt embedding cache — skip the ~40 ms Qwen3 text encode when the prompt is
 # unchanged (almost every frame).  Cached embeds are passed straight back in.
 # ---------------------------------------------------------------------------

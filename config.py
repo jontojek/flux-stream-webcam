@@ -92,3 +92,32 @@ LORA_LABEL = "Octane"
 
 # First prompt shown before you speak
 INITIAL_PROMPT = "a marble bust"
+
+# ---- Frame interpolation (RIFE) ---------------------------------------------
+# Optional presentation smoother, same idea as FAL's realtime Klein demo's
+# `enable_interpolation`: inserts one AI-blended frame between every two real
+# generations, so the window displays at ~2x the perceived frame rate. Does
+# NOT speed up generation or add new prompt-following content -- pure motion
+# smoothing. Needs a one-time manual download of the standalone
+# rife-ncnn-vulkan.exe (portable, no PyTorch/CUDA needed) -- see the README's
+# "Frame interpolation (RIFE)" section. Live-toggleable with the `i` key.
+ENABLE_INTERPOLATION = False
+RIFE_EXE   = r"D:\AI_software\Github_repos\flux-stream-webcam\rife\rife-ncnn-vulkan.exe"
+RIFE_MODEL = r"D:\AI_software\Github_repos\flux-stream-webcam\rife\rife-v4.6"
+
+# ---- Schedule mu (FLUX flow-matching scheduler time-shift) ------------------
+# Klein's pipeline auto-computes a "mu" shift value from resolution + step count
+# (compute_empirical_mu()) and feeds it into the flow-matching scheduler --
+# this controls how the sampling steps are spaced across the noise trajectory.
+# FAL's realtime Klein demo (https://fal.ai/models/fal-ai/flux-2/klein/realtime)
+# exposes this as a direct creative dial called `schedule_mu` (0.3-2.5, default
+# 2.3): lower = steps bunched toward the end (sharper, can lose structure),
+# higher = steps spread earlier (softer/smoother). We patch it in via
+# infer.py's monkeypatch of compute_empirical_mu (no diffusers fork needed).
+# None = auto (Klein's own resolution-aware default -- the proven, safe choice).
+# Live-adjustable with m (raise) / n (lower) / r (reset to auto).
+SCHEDULE_MU         = None
+SCHEDULE_MU_MIN     = 0.3
+SCHEDULE_MU_MAX     = 2.5
+SCHEDULE_MU_DEFAULT = 2.3   # FAL's default -- the starting point the first time you press m/n
+SCHEDULE_MU_STEP    = 0.1

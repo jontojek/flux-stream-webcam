@@ -21,6 +21,8 @@ It's a pure **Python + 🤗 diffusers** app — no ComfyUI, no nodes, just run i
 - 🎚️ **Structure dial** — slide from "barely-touched webcam" to "totally reimagined".
 - 🌀 **Temporal feedback** — feed the last frame back in for trails / morphing motion.
 - 🧱 **LoRA support** — drop in style/material LoRAs (e.g. an *Octane Render* look) for transformations prompts alone can't do.
+- 🎞️ **Frame interpolation (optional)** — RIFE smooths motion between generations for a less choppy feed (same trick as FAL's realtime Klein demo).
+- 🎛️ **Schedule-mu dial (optional)** — override the sampler's flow-shift parameter for a sharper or softer look (same trick as FAL's realtime Klein demo).
 - ⚡ **Optimized** — fp8 quantization + `torch.compile` to keep it interactive.
 
 ---
@@ -82,9 +84,12 @@ Everything is shown live on the top bar of the window, so you don't have to memo
 | **`+`** / **`-`** | More / fewer diffusion **steps** — higher = nicer but slower |
 | **`]`** / **`[`** | **Strength** up/down — how much it restyles vs. keeps your real webcam |
 | **`.`** / **`,`** | **Feedback** up/down — trails & morphing (0 = off) |
+| **`i`** | Toggle RIFE **frame interpolation** on/off — see below (needs one-time setup) |
+| **`m`** / **`n`** | **Schedule-mu** up/down — sharper vs. softer look (no setup needed, see below) |
+| **`r`** | Reset schedule-mu to **auto** (Klein's resolution-based default) |
 | **`Q`** / **`Esc`** | Quit |
 
-The on-screen status line reads: `fps · steps · str(ength) · fb(feedback) · lora`.
+The on-screen status line reads: `fps · steps · str(ength) · fb(feedback) · lora · interp · mu`.
 
 ---
 
@@ -102,6 +107,8 @@ The most useful ones:
 | `WHISPER_MODEL` | Speech recognition model | `"base.en"` (default) or `"tiny.en"` for speed. |
 | `AUDIO_DEVICE` | Which microphone to use | `None` = system default, or a name like `"Microphone"` (see below). |
 | `LORAS` | List of LoRAs to load | See the LoRA section. |
+| `ENABLE_INTERPOLATION` | RIFE frame smoothing | `False` by default. Needs a one-time setup — see **Frame interpolation (RIFE)** below. Also live via `i`. |
+| `SCHEDULE_MU` | Sampler flow-shift override | `None` (auto) by default — no setup needed. Live via `m`/`n`/`r`. See **Schedule-mu (flow-shift dial)** below. |
 
 > After editing `config.py`, just relaunch `START.bat`. Resolution/LoRA changes
 > trigger a one-time recompile (slow first run again).
@@ -144,6 +151,65 @@ and your face/scene becomes it:
 
 ---
 
+## 🎞️ Frame interpolation (RIFE)
+
+This is the same idea as the `enable_interpolation` flag in FAL's
+[realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime): an
+AI model called **RIFE** generates a blended frame *between* two real generations,
+so the window updates twice as often per generation. It makes motion look smoother
+— it does **not** make generation faster or add new prompt-following detail.
+
+### One-time setup
+
+This part can't be automated (it's a binary download, not a Python package):
+
+1. Download the **Windows** build from
+   **<https://github.com/nihui/rife-ncnn-vulkan/releases>** — the asset named
+   `rife-ncnn-vulkan-<date>-windows.zip` (a few MB).
+2. Unzip it so you end up with a **`rife\`** folder right next to `main.py`,
+   containing `rife-ncnn-vulkan.exe` and model folders (`rife-v4.6\`, etc.).
+3. Set `ENABLE_INTERPOLATION = True` in `config.py`, or just press **`i`** while
+   the app is running.
+
+No PyTorch/CUDA dependency — it's a portable executable that runs on its own
+(Vulkan, works on any GPU vendor).
+
+> 💡 If you forget the setup step, pressing `i` just prints a reminder in the
+> console and interpolation silently stays off — it won't crash the app.
+
+---
+
+## 🎛️ Schedule-mu (flow-shift dial)
+
+This is the same idea as the `schedule_mu` slider in FAL's
+[realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime)
+(range `0.3`–`2.5`, default `2.3`). Klein's flow-matching sampler always picks a
+"mu" time-shift value automatically from your resolution + step count — this dial
+overrides that and controls how the sampling steps are spread across the
+denoising trajectory:
+
+- **Lower mu** → steps bunch toward the end of the trajectory → sharper, more
+  detailed, but can lose structure/coherence.
+- **Higher mu** → steps spread out earlier → softer, smoother, more stable.
+- **Auto** (the default, `None`) → Klein's own resolution-aware value — the
+  proven, safe choice it ships with.
+
+**No setup required** — unlike RIFE, this is pure code and works the moment you
+launch the app.
+
+### Using it
+
+- Press **`m`** to raise mu, **`n`** to lower it. The first press starts from
+  FAL's default of `2.3`; after that it nudges by `0.1` per press, clamped to
+  `0.3`–`2.5`.
+- Press **`r`** any time to reset back to **auto**.
+- The HUD's `mu:` readout shows `auto` or the current numeric value.
+
+> 💡 It's subtle at low step counts (1–2 steps, this app's default) since there's
+> little trajectory left to reshape. It's most noticeable if you raise `STEPS`.
+
+---
+
 ## 🎤 Microphone troubleshooting
 
 If it seems to **ignore you when you talk**, run **`MIC_CHECK.bat`**. It lists every
@@ -174,6 +240,8 @@ audio device and shows a live level meter — talk and watch the bar move.
 | Out-of-memory / crash on load | Your GPU has too little VRAM. Lower `WIDTH`/`HEIGHT` to `384` or `320` in `config.py`. |
 | Voice not picked up | See the **Microphone troubleshooting** section above. |
 | It's too slow | Press `-` (fewer steps), or set a lower resolution in `config.py`. |
+| `i` does nothing / console says "RIFE not found" | You haven't done the one-time RIFE download yet — see **Frame interpolation (RIFE)** above. |
+| `m`/`n`/`r` seem to do nothing visually | Expected at low step counts — schedule-mu reshapes the sampling trajectory, which matters more at higher `STEPS`. Check the HUD's `mu:` readout to confirm the value is changing. |
 
 ---
 
@@ -197,9 +265,16 @@ audio device and shows a live level meter — talk and watch the bar move.
   nothing. Resolution and step count are the main speed dials.
 - **LoRAs** are *fused* into the model weights at startup (before quantization), so
   they add zero runtime cost.
+- **RIFE interpolation** runs as a separate portable executable (`rife-ncnn-vulkan`),
+  blending the previous and current output into one extra displayed frame — a
+  presentation trick, not a generation-speed trick.
+- **Schedule-mu** is a one-line monkeypatch of the internal function Klein's pipeline
+  uses to derive its flow-matching scheduler shift (`compute_empirical_mu`), so the
+  override needs no fork of `diffusers`.
 
 This project is a pure-Python replacement for an older ComfyUI workflow that did the
-same thing with nodes.
+same thing with nodes. Both RIFE interpolation and the schedule-mu dial are
+inspired by knobs in FAL's [realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime).
 
 </details>
 
@@ -211,6 +286,7 @@ same thing with nodes.
 main.py          The app: webcam → restyle → display window + keyboard controls
 infer.py         Loads the model, applies LoRAs/fp8/compile, runs each frame
 audio.py         Background mic → Whisper → live prompt text
+interpolate.py   Optional RIFE frame-interpolation wrapper (presentation smoothing)
 config.py        ⭐ All your settings live here
 mic_check.py     Microphone level meter / device lister
 
@@ -220,6 +296,7 @@ MIC_CHECK.bat    Run the microphone meter
 
 requirements.txt Python dependencies (INSTALL.bat handles these for you)
 models/          Model cache (auto-downloaded; not in git)
+rife/            RIFE exe + models (manual download; not in git) — see "Frame interpolation"
 ```
 
 > 🔧 **For other machines:** the `.bat` files have this computer's paths baked in
@@ -234,6 +311,8 @@ models/          Model cache (auto-downloaded; not in git)
 - **[🤗 diffusers](https://github.com/huggingface/diffusers)**, **[torchao](https://github.com/pytorch/ao)**, **[PyTorch](https://pytorch.org)**
 - **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** — voice transcription
 - **Octane Render LoRA** — [civitai.com/models/1883576](https://civitai.com/models/1883576/octane-render)
+- **[RIFE](https://github.com/hzwer/arXiv2020-RIFE)** / **[rife-ncnn-vulkan](https://github.com/nihui/rife-ncnn-vulkan)** — optional frame interpolation
+- **[FAL's realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime)** — inspiration for the interpolation and schedule-mu dials
 
 ---
 

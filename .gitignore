@@ -7,6 +7,9 @@ models/*.pth
 models/*-diffusers/
 models/hf_cache/
 
+# RIFE frame-interpolation binary + models — manual download, too large for git
+rife/
+
 # Python
 __pycache__/
 *.pyc
