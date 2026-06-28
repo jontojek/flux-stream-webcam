@@ -25,3 +25,4 @@ faster-whisper
 opencv-python
 Pillow
 numpy
+dxcam          # screen-region capture (DXGI desktop duplication, Windows only)

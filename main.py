@@ -18,7 +18,9 @@ import numpy as np
 import config
 import interpolate
 from audio import AudioThread
+from capture import WebcamCapture, ScreenCapture
 from infer import build_pipeline, infer, warmup
+from selector import select_region
 
 
 def compose_hud(img: np.ndarray, hud: str, prompt_text: str, top_bar: int, bot_bar: int) -> np.ndarray:
@@ -30,7 +32,7 @@ def compose_hud(img: np.ndarray, hud: str, prompt_text: str, top_bar: int, bot_b
     out_frame[top_bar:top_bar + h, :] = img
     cv2.putText(out_frame, hud, (8, 16),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 255, 120), 1, cv2.LINE_AA)
-    cv2.putText(out_frame, "+/- steps  [ ] strength  ,/. feedback  i interp  m/n/r mu  Q quit",
+    cv2.putText(out_frame, "+/- steps  [ ] strength  ,/. feedback  i interp  m/n/r mu  s region  Q quit",
                 (8, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (215, 215, 215), 1, cv2.LINE_AA)
     disp = prompt_text if len(prompt_text) <= 52 else prompt_text[:49] + "..."
     cv2.putText(out_frame, disp, (8, h + top_bar + 22),
@@ -38,38 +40,48 @@ def compose_hud(img: np.ndarray, hud: str, prompt_text: str, top_bar: int, bot_b
     return out_frame
 
 
-def open_webcam(device_index: int = 0) -> cv2.VideoCapture:
-    """Try DSHOW -> MSMF -> AUTO until the camera opens."""
-    backends = [
-        (cv2.CAP_DSHOW, "DSHOW"),
-        (cv2.CAP_MSMF,  "MSMF"),
-        (cv2.CAP_ANY,   "AUTO"),
-    ]
-    for backend, name in backends:
-        cap = cv2.VideoCapture(device_index, backend)
-        if cap.isOpened():
-            ret, _ = cap.read()
-            if ret:
-                print(f"[main] Webcam opened via {name}.")
-                return cap
-        cap.release()
-    return None
+def _choose_input() -> "WebcamCapture | ScreenCapture":
+    """Ask the user which input source to use and return a ready capture object."""
+    print("\n" + "=" * 50)
+    print("  Input source:")
+    print("    1) Webcam  (default)")
+    print("    2) Screen region  (UE5, Maya, VLC, ...)")
+    print("=" * 50)
+    choice = input("  Choice [1]: ").strip()
+
+    if choice == "2":
+        print("\n[main] Opening region selector — draw a square on screen ...")
+        region = select_region()
+        if region is None:
+            print("[main] Selection cancelled — falling back to webcam.")
+        else:
+            x, y, size = region
+            try:
+                return ScreenCapture(x, y, size)
+            except RuntimeError as e:
+                print(f"[main] ERROR: {e}")
+                raise SystemExit(1)
+
+    # Webcam path
+    try:
+        cap = WebcamCapture(device_index=0)
+    except RuntimeError as e:
+        print(f"[main] ERROR: {e}")
+        raise SystemExit(1)
+    return cap
 
 
 def main() -> None:
     print("[main] Building FLUX.2-Klein pipeline ...")
     pipe = build_pipeline()
 
-    print("[main] Opening webcam ...")
-    cap = open_webcam(device_index=0)
-    if cap is None:
-        print("[main] ERROR: could not open webcam with any backend.")
-        print("       Make sure no other app (Chrome, Teams, OBS) has the camera.")
-        return
+    cap = _choose_input()
+    use_screen = isinstance(cap, ScreenCapture)
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  config.WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.HEIGHT)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    if not use_screen:
+        cap._cap.set(cv2.CAP_PROP_FRAME_WIDTH,  config.WIDTH)
+        cap._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.HEIGHT)
+        cap._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     # HUD margins (black bars above/below the image so text never covers it)
     TOP_BAR, BOT_BAR = 44, 32
@@ -99,6 +111,7 @@ def main() -> None:
     print("    . / ,   feedback     (trails / morphing; 0 = off)")
     print("    i       toggle RIFE frame interpolation (smoother, not faster)")
     print("    m / n   schedule-mu raise/lower (flow-shift dial; r = reset to auto)")
+    print("    s       redraw screen capture region  (screen-capture mode only)")
     print("    Q/Esc   quit")
     if config.LORAS:
         names = ", ".join(fn for (fn, _w) in config.LORAS)
@@ -223,6 +236,13 @@ def main() -> None:
             elif key == ord("r"):
                 config.SCHEDULE_MU = None
                 print("[main] SCHEDULE_MU -> auto (Klein's resolution-based default)")
+            elif key == ord("s") and use_screen:
+                print("[main] Opening region selector ...")
+                region = select_region()
+                if region is not None:
+                    cap.set_region(*region)
+                else:
+                    print("[main] Selection cancelled — keeping current region.")
 
             if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
                 print("[main] Window closed -- exiting.")

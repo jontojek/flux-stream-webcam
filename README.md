@@ -1,12 +1,12 @@
 # 🎨 flux-stream-webcam
 
-> **Speak a style out loud and watch your webcam transform into it — live.**
+> **Speak a style out loud and watch your video feed transform into it — live.**
 
-A real-time, voice-driven video style-transfer toy for Windows + NVIDIA GPUs. Talk
+A real-time, voice-driven video style-transfer app for Windows + NVIDIA GPUs. Talk
 into your mic ("a bronze statue", "cyberpunk neon city", "carved jade"), and your
-webcam feed is continuously re-rendered in that style by the **FLUX.2-Klein-4B**
-image model. Add a LoRA for material looks, dial how much of your real face shows
-through, and turn on feedback for trippy morphing.
+video feed is continuously re-rendered in that style by the **FLUX.2-Klein-4B**
+image model. Use your webcam, or capture any window on screen — a UE5 viewport,
+a Maya scene, a VLC movie — and style-transfer it in real time.
 
 It's a pure **Python + 🤗 diffusers** app — no ComfyUI, no nodes, just run it.
 
@@ -17,12 +17,13 @@ It's a pure **Python + 🤗 diffusers** app — no ComfyUI, no nodes, just run i
 ## ✨ What it does
 
 - 🎙️ **Voice control** — your speech is transcribed live (Whisper) and becomes the art prompt.
-- 🖼️ **Real-time restyle** — every webcam frame is re-imagined by FLUX.2-Klein-4B (~5–14 FPS depending on settings).
-- 🎚️ **Structure dial** — slide from "barely-touched webcam" to "totally reimagined".
+- 🖼️ **Real-time restyle** — every frame is re-imagined by FLUX.2-Klein-4B (~5–14 FPS depending on settings).
+- 🖥️ **Live Canvas** — capture any window on your screen (UE5, Maya, VLC, browsers…) instead of a webcam; draw the region with your mouse and swap it live mid-session.
+- 🎚️ **Structure dial** — slide from "barely-touched source" to "totally reimagined".
 - 🌀 **Temporal feedback** — feed the last frame back in for trails / morphing motion.
 - 🧱 **LoRA support** — drop in style/material LoRAs (e.g. an *Octane Render* look) for transformations prompts alone can't do.
-- 🎞️ **Frame interpolation (optional)** — RIFE smooths motion between generations for a less choppy feed (same trick as FAL's realtime Klein demo).
-- 🎛️ **Schedule-mu dial (optional)** — override the sampler's flow-shift parameter for a sharper or softer look (same trick as FAL's realtime Klein demo).
+- 🎞️ **Frame interpolation (optional)** — RIFE smooths motion between generations for a less choppy feed.
+- 🎛️ **Schedule-mu dial** — override the sampler's flow-shift parameter for a sharper or softer look.
 - ⚡ **Optimized** — fp8 quantization + `torch.compile` to keep it interactive.
 
 ---
@@ -35,7 +36,7 @@ It's a pure **Python + 🤗 diffusers** app — no ComfyUI, no nodes, just run i
 | **GPU** | NVIDIA, **16 GB VRAM or more** (developed on an RTX 5090, 32 GB) |
 | **Disk** | ~20 GB free (the model is ~15 GB) |
 | **Python** | A working Python 3.11+ install (this project uses Miniconda) |
-| **Webcam + mic** | Any that Windows recognizes |
+| **Input** | Webcam + mic, or any app running on your primary monitor |
 
 > 💡 **Beginner note:** this needs a fairly powerful *NVIDIA* graphics card. It will
 > not run on a laptop with only integrated graphics, or on an AMD/Mac GPU.
@@ -67,8 +68,21 @@ Double-click **`START.bat`**.
   2. **Compiles GPU kernels** (1–3 minutes). You'll see a "Warming up…" window.
 - **Every launch after** is fast (both are cached).
 
-When the window shows your styled webcam, **start talking**. Say a style and watch
-it change.
+At startup you'll be asked to choose your **input source**:
+
+```
+Input source:
+  1) Webcam  (default)
+  2) Screen region  (UE5, Maya, VLC, ...)
+Choice [1]:
+```
+
+- **Webcam** — existing webcam path, unchanged.
+- **Screen region** — a semi-transparent overlay appears; click and drag to draw a
+  square over the window you want to capture. The square is locked 1:1. Press **`Esc`**
+  to cancel. Once drawn, the loop starts immediately.
+
+When the output window appears, **start talking**. Say a style and watch it change.
 
 Press **`Q`** (or close the window) to quit.
 
@@ -82,14 +96,46 @@ Everything is shown live on the top bar of the window, so you don't have to memo
 |---|---|
 | 🎙️ **Speak** | Sets the art style (e.g. "a watercolor sunset") |
 | **`+`** / **`-`** | More / fewer diffusion **steps** — higher = nicer but slower |
-| **`]`** / **`[`** | **Strength** up/down — how much it restyles vs. keeps your real webcam |
+| **`]`** / **`[`** | **Strength** up/down — how much it restyles vs. keeps the source frame |
 | **`.`** / **`,`** | **Feedback** up/down — trails & morphing (0 = off) |
-| **`i`** | Toggle RIFE **frame interpolation** on/off — see below (needs one-time setup) |
-| **`m`** / **`n`** | **Schedule-mu** up/down — sharper vs. softer look (no setup needed, see below) |
+| **`i`** | Toggle RIFE **frame interpolation** on/off (needs one-time setup — see below) |
+| **`m`** / **`n`** | **Schedule-mu** up/down — sharper vs. softer look |
 | **`r`** | Reset schedule-mu to **auto** (Klein's resolution-based default) |
+| **`s`** | Redraw the **screen capture region** (Live Canvas mode only) |
 | **`Q`** / **`Esc`** | Quit |
 
 The on-screen status line reads: `fps · steps · str(ength) · fb(feedback) · lora · interp · mu`.
+
+---
+
+## 🖥️ Live Canvas (screen region capture)
+
+When you choose **option 2** at startup, the app captures a square region of your
+primary monitor instead of a webcam. This means you can style-transfer:
+
+- A **UE5 viewport** as you fly through a scene
+- A **Maya or Blender 3D view**
+- A **VLC** or any video player
+- A **browser tab**, game, or any other window
+
+### Drawing the region
+
+A fullscreen semi-transparent overlay appears. Click and drag — the square locks to
+1:1 automatically (size = `max(width, height)` of your drag). Release the mouse to
+confirm. Press **`Esc`** to cancel.
+
+The minimum region size is 32×32 pixels; anything smaller is ignored so you can
+try again without restarting.
+
+### Changing the region mid-session
+
+Press **`s`** while the app is running to redraw. The overlay appears again; draw a
+new square and the capture region updates instantly with no restart and no
+performance cost — it's just four integers passed to the capture call.
+
+> 💡 **Tip:** if your source app is paused or showing a static frame, `dxcam`
+> (which uses DXGI desktop duplication) only fires on screen changes. The app will
+> skip those frames and hold the last good one rather than hanging.
 
 ---
 
@@ -102,13 +148,13 @@ The most useful ones:
 |---|---|---|
 | `WIDTH` / `HEIGHT` | Output resolution | **Biggest speed lever.** `512` = best look (~5 FPS), `384` ≈ 9 FPS, `320` ≈ 12–18 FPS. Restart after changing. |
 | `STEPS` | Diffusion steps per frame | `1` fastest, `2` good default, `4` max quality. Also live via `+`/`-`. |
-| `STRENGTH` | How far it reimagines your webcam (0–1) | `~0.5` = subtle, `~0.9` = full restyle. Also live via `[`/`]`. |
+| `STRENGTH` | How far it reimagines the source frame (0–1) | `~0.5` = subtle, `~0.9` = full restyle. Also live via `[`/`]`. |
 | `FEEDBACK` | Blend in the previous frame (0–1) | `0` off; `0.3–0.6` nice morphing; `0.8+` psychedelic. Also live via `,`/`.`. |
 | `WHISPER_MODEL` | Speech recognition model | `"base.en"` (default) or `"tiny.en"` for speed. |
 | `AUDIO_DEVICE` | Which microphone to use | `None` = system default, or a name like `"Microphone"` (see below). |
 | `LORAS` | List of LoRAs to load | See the LoRA section. |
 | `ENABLE_INTERPOLATION` | RIFE frame smoothing | `False` by default. Needs a one-time setup — see **Frame interpolation (RIFE)** below. Also live via `i`. |
-| `SCHEDULE_MU` | Sampler flow-shift override | `None` (auto) by default — no setup needed. Live via `m`/`n`/`r`. See **Schedule-mu (flow-shift dial)** below. |
+| `SCHEDULE_MU` | Sampler flow-shift override | `None` (auto) by default. Live via `m`/`n`/`r`. See **Schedule-mu** below. |
 
 > After editing `config.py`, just relaunch `START.bat`. Resolution/LoRA changes
 > trigger a one-time recompile (slow first run again).
@@ -153,15 +199,11 @@ and your face/scene becomes it:
 
 ## 🎞️ Frame interpolation (RIFE)
 
-This is the same idea as the `enable_interpolation` flag in FAL's
-[realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime): an
-AI model called **RIFE** generates a blended frame *between* two real generations,
-so the window updates twice as often per generation. It makes motion look smoother
-— it does **not** make generation faster or add new prompt-following detail.
+RIFE generates a blended frame *between* two real generations, so the window updates
+twice as often per generation. It makes motion look smoother — it does **not** make
+generation faster or add new prompt-following detail.
 
 ### One-time setup
-
-This part can't be automated (it's a binary download, not a Python package):
 
 1. Download the **Windows** build from
    **<https://github.com/nihui/rife-ncnn-vulkan/releases>** — the asset named
@@ -181,32 +223,18 @@ No PyTorch/CUDA dependency — it's a portable executable that runs on its own
 
 ## 🎛️ Schedule-mu (flow-shift dial)
 
-This is the same idea as the `schedule_mu` slider in FAL's
-[realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime)
-(range `0.3`–`2.5`, default `2.3`). Klein's flow-matching sampler always picks a
-"mu" time-shift value automatically from your resolution + step count — this dial
-overrides that and controls how the sampling steps are spread across the
-denoising trajectory:
+Klein's flow-matching sampler auto-picks a "mu" time-shift value from your
+resolution + step count. This dial overrides it:
 
-- **Lower mu** → steps bunch toward the end of the trajectory → sharper, more
-  detailed, but can lose structure/coherence.
+- **Lower mu** → steps bunch toward the end → sharper, more detailed, but can lose structure.
 - **Higher mu** → steps spread out earlier → softer, smoother, more stable.
-- **Auto** (the default, `None`) → Klein's own resolution-aware value — the
-  proven, safe choice it ships with.
+- **Auto** (default, `None`) → Klein's own resolution-aware value — the safe choice.
 
-**No setup required** — unlike RIFE, this is pure code and works the moment you
-launch the app.
+Press **`m`** to raise, **`n`** to lower, **`r`** to reset to auto. The HUD shows
+`mu:auto` or the current numeric value. No setup required.
 
-### Using it
-
-- Press **`m`** to raise mu, **`n`** to lower it. The first press starts from
-  FAL's default of `2.3`; after that it nudges by `0.1` per press, clamped to
-  `0.3`–`2.5`.
-- Press **`r`** any time to reset back to **auto**.
-- The HUD's `mu:` readout shows `auto` or the current numeric value.
-
-> 💡 It's subtle at low step counts (1–2 steps, this app's default) since there's
-> little trajectory left to reshape. It's most noticeable if you raise `STEPS`.
+> 💡 Most noticeable at higher `STEPS` — subtle at the default 1–2 steps since
+> there's little trajectory left to reshape.
 
 ---
 
@@ -234,14 +262,16 @@ audio device and shows a live level meter — talk and watch the bar move.
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError: No module named 'numpy'` (or torch, etc.) | You ran the wrong Python. Use the `.bat` files, or the full `miniconda3\python.exe` path. |
+| `ModuleNotFoundError: No module named 'numpy'` (or torch, dxcam, etc.) | You ran the wrong Python. Use the `.bat` files, or the full `miniconda3\python.exe` path. |
 | Webcam window is black / "could not open webcam" | Another app (Zoom, Teams, OBS, Chrome) is using the camera. Close it. |
+| Screen region is black / all one colour | The source app may be using a hardware overlay. Try windowed mode instead of fullscreen. |
 | First run hangs for minutes | Normal — it's downloading the model and/or compiling kernels. Only happens once. |
 | Out-of-memory / crash on load | Your GPU has too little VRAM. Lower `WIDTH`/`HEIGHT` to `384` or `320` in `config.py`. |
 | Voice not picked up | See the **Microphone troubleshooting** section above. |
 | It's too slow | Press `-` (fewer steps), or set a lower resolution in `config.py`. |
 | `i` does nothing / console says "RIFE not found" | You haven't done the one-time RIFE download yet — see **Frame interpolation (RIFE)** above. |
-| `m`/`n`/`r` seem to do nothing visually | Expected at low step counts — schedule-mu reshapes the sampling trajectory, which matters more at higher `STEPS`. Check the HUD's `mu:` readout to confirm the value is changing. |
+| `m`/`n`/`r` seem to do nothing visually | Expected at low step counts. Check the HUD's `mu:` readout to confirm the value is changing. |
+| `s` key does nothing | Only active in screen-capture mode (option 2 at startup). |
 
 ---
 
@@ -252,11 +282,14 @@ audio device and shows a live level meter — talk and watch the bar move.
 
 - **Model:** [FLUX.2-Klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B)
   by Black Forest Labs — a small (4-billion-parameter), distilled image model that
-  works in just 1–2 steps, which is what makes real-time possible. It's Apache-2.0
-  licensed and downloads automatically.
-- **The loop:** grab a webcam frame → (optionally blend in the last output =
-  *feedback*) → run **img2img** (the frame is the starting point; how far it's
-  re-noised = *strength*) → the spoken prompt steers the style → show the result.
+  works in just 1–2 steps, which is what makes real-time possible. Apache-2.0 licensed.
+- **The loop:** grab a frame (webcam or screen region) → (optionally blend in the
+  last output = *feedback*) → run **img2img** (*strength* controls how far it's
+  re-noised) → the spoken prompt steers the style → show the result.
+- **Live Canvas:** uses **dxcam** (DXGI desktop duplication — the same API OBS uses),
+  which captures hardware-accelerated content that GDI/BitBlt cannot. A tkinter
+  fullscreen overlay handles the 1:1 square draw interaction. Changing the region
+  mid-session (`s` key) costs nothing — it's just updating four integers.
 - **Voice:** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) runs on a
   background thread, gated by a microphone-energy check so it doesn't transcribe
   silence, with a short debounce so half-spoken phrases don't fire early.
@@ -272,9 +305,9 @@ audio device and shows a live level meter — talk and watch the bar move.
   uses to derive its flow-matching scheduler shift (`compute_empirical_mu`), so the
   override needs no fork of `diffusers`.
 
-This project is a pure-Python replacement for an older ComfyUI workflow that did the
-same thing with nodes. Both RIFE interpolation and the schedule-mu dial are
-inspired by knobs in FAL's [realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime).
+This project is a pure-Python replacement for an older ComfyUI workflow. RIFE
+interpolation and the schedule-mu dial are inspired by knobs in FAL's
+[realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime).
 
 </details>
 
@@ -283,7 +316,9 @@ inspired by knobs in FAL's [realtime FLUX.2-Klein demo](https://fal.ai/models/fa
 ## 📁 Project layout
 
 ```
-main.py          The app: webcam → restyle → display window + keyboard controls
+main.py          The app: input → restyle → display window + keyboard controls
+capture.py       WebcamCapture / ScreenCapture — unified frame-source abstraction
+selector.py      Fullscreen overlay for drawing the Live Canvas region
 infer.py         Loads the model, applies LoRAs/fp8/compile, runs each frame
 audio.py         Background mic → Whisper → live prompt text
 interpolate.py   Optional RIFE frame-interpolation wrapper (presentation smoothing)
@@ -310,6 +345,7 @@ rife/            RIFE exe + models (manual download; not in git) — see "Frame 
 - **[FLUX.2-Klein](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B)** — Black Forest Labs
 - **[🤗 diffusers](https://github.com/huggingface/diffusers)**, **[torchao](https://github.com/pytorch/ao)**, **[PyTorch](https://pytorch.org)**
 - **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** — voice transcription
+- **[dxcam](https://github.com/ra1nty/DXcam)** — DXGI screen capture
 - **Octane Render LoRA** — [civitai.com/models/1883576](https://civitai.com/models/1883576/octane-render)
 - **[RIFE](https://github.com/hzwer/arXiv2020-RIFE)** / **[rife-ncnn-vulkan](https://github.com/nihui/rife-ncnn-vulkan)** — optional frame interpolation
 - **[FAL's realtime FLUX.2-Klein demo](https://fal.ai/models/fal-ai/flux-2/klein/realtime)** — inspiration for the interpolation and schedule-mu dials

@@ -39,7 +39,7 @@ echo.
 echo  Step 2 of 2: Installing remaining packages...
 echo.
 
-%PIP% install "torchao>=0.9.0" "diffusers>=0.31.0" "transformers>=4.46.0" accelerate peft sounddevice faster-whisper opencv-python Pillow numpy triton
+%PIP% install "torchao>=0.9.0" "diffusers>=0.31.0" "transformers>=4.46.0" accelerate peft sounddevice faster-whisper opencv-python Pillow numpy triton dxcam
 
 if errorlevel 1 (
     echo.
